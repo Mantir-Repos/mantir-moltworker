@@ -19,6 +19,9 @@ export interface MoltbotEnv {
   ANTHROPIC_API_KEY?: string;
   ANTHROPIC_BASE_URL?: string;
   OPENAI_API_KEY?: string;
+  // MiniMax provider (Anthropic-compatible API)
+  MINIMAX_API_KEY?: string;
+  MINIMAX_MODEL?: string; // Default: 'MiniMax-M2.5'. Options: MiniMax-M2.5, MiniMax-M2.5-highspeed, MiniMax-M2.1, MiniMax-M2.1-highspeed, MiniMax-M2
   MOLTBOT_GATEWAY_TOKEN?: string; // Gateway token (mapped to OPENCLAW_GATEWAY_TOKEN for container)
   DEV_MODE?: string; // Set to 'true' for local dev (skips CF Access auth + openclaw device pairing)
   E2E_TEST_MODE?: string; // Set to 'true' for E2E tests (skips CF Access auth but keeps device pairing)
@@ -30,6 +33,11 @@ export interface MoltbotEnv {
   DISCORD_DM_POLICY?: string;
   SLACK_BOT_TOKEN?: string;
   SLACK_APP_TOKEN?: string;
+  SLACK_GROUP_POLICY?: string; // Slack group chat policy: 'open' (default), 'closed', etc.
+  SLACK_REQUIRE_MENTION?: string; // 'true' to require @mention in group chats
+  SLACK_HISTORY_LIMIT?: string; // Number of messages to include as context (default: 10)
+  MENTION_PATTERNS?: string; // Comma-separated mention patterns, e.g. "jeff,jeff barnes,@jeff"
+  NOTION_API_KEY?: string; // Notion integration API key for the Notion skill
   // Cloudflare Access configuration for admin routes
   CF_ACCESS_TEAM_DOMAIN?: string; // e.g., 'myteam.cloudflareaccess.com'
   CF_ACCESS_AUD?: string; // Application Audience (AUD) tag

@@ -21,6 +21,9 @@ SKILLS_DIR="/root/clawd/skills"
 RCLONE_CONF="/root/.config/rclone/rclone.conf"
 LAST_SYNC_FILE="/tmp/.last-sync"
 
+R2_RESTORED=false
+WORKSPACE_RESTORED=false
+
 echo "Config directory: $CONFIG_DIR"
 
 mkdir -p "$CONFIG_DIR"
@@ -65,6 +68,7 @@ if r2_configured; then
     if rclone ls "r2:${R2_BUCKET}/openclaw/openclaw.json" $RCLONE_FLAGS 2>/dev/null | grep -q openclaw.json; then
         echo "Restoring config from R2..."
         rclone copy "r2:${R2_BUCKET}/openclaw/" "$CONFIG_DIR/" $RCLONE_FLAGS -v 2>&1 || echo "WARNING: config restore failed with exit code $?"
+        R2_RESTORED=true
         echo "Config restored"
     elif rclone ls "r2:${R2_BUCKET}/clawdbot/clawdbot.json" $RCLONE_FLAGS 2>/dev/null | grep -q clawdbot.json; then
         echo "Restoring from legacy R2 backup..."
@@ -72,6 +76,7 @@ if r2_configured; then
         if [ -f "$CONFIG_DIR/clawdbot.json" ] && [ ! -f "$CONFIG_FILE" ]; then
             mv "$CONFIG_DIR/clawdbot.json" "$CONFIG_FILE"
         fi
+        R2_RESTORED=true
         echo "Legacy config restored and migrated"
     else
         echo "No backup found in R2, starting fresh"
@@ -83,6 +88,7 @@ if r2_configured; then
         echo "Restoring workspace from R2 ($REMOTE_WS_COUNT files)..."
         mkdir -p "$WORKSPACE_DIR"
         rclone copy "r2:${R2_BUCKET}/workspace/" "$WORKSPACE_DIR/" $RCLONE_FLAGS -v 2>&1 || echo "WARNING: workspace restore failed with exit code $?"
+        WORKSPACE_RESTORED=true
         echo "Workspace restored"
     fi
 
@@ -114,6 +120,9 @@ if [ ! -f "$CONFIG_FILE" ]; then
         AUTH_ARGS="--auth-choice apiKey --anthropic-api-key $ANTHROPIC_API_KEY"
     elif [ -n "$OPENAI_API_KEY" ]; then
         AUTH_ARGS="--auth-choice openai-api-key --openai-api-key $OPENAI_API_KEY"
+    elif [ -n "$MINIMAX_API_KEY" ]; then
+        # Use MiniMax key as Anthropic key for onboard (patcher will override provider config)
+        AUTH_ARGS="--auth-choice apiKey --anthropic-api-key $MINIMAX_API_KEY"
     fi
 
     openclaw onboard --non-interactive --accept-risk \
@@ -128,6 +137,28 @@ if [ ! -f "$CONFIG_FILE" ]; then
     echo "Onboard completed"
 else
     echo "Using existing config"
+fi
+
+# ============================================================
+# APPLY CUSTOM IDENTITY FILES
+# ============================================================
+# Identity files (IDENTITY.md, SOUL.md, HEARTBEAT.md, etc.) live in the
+# OpenClaw workspace directory (/root/.openclaw/workspace/), where OpenClaw
+# auto-discovers and loads them into the system prompt.
+# Note: This is different from WORKSPACE_DIR (/root/clawd/) which is for
+# user workspace files. OpenClaw's onboard creates its workspace at
+# ~/.openclaw/workspace/ by default.
+IDENTITY_DEFAULTS="/opt/openclaw-identity"
+OPENCLAW_WORKSPACE="$CONFIG_DIR/workspace"
+if [ -d "$IDENTITY_DEFAULTS" ]; then
+    mkdir -p "$OPENCLAW_WORKSPACE"
+    echo "Applying custom identity files to $OPENCLAW_WORKSPACE..."
+    for f in "$IDENTITY_DEFAULTS"/*.md; do
+        [ -f "$f" ] || continue
+        filename=$(basename "$f")
+        cp "$f" "$OPENCLAW_WORKSPACE/$filename"
+        echo "  Applied: $filename"
+    done
 fi
 
 # ============================================================
@@ -219,6 +250,24 @@ if (process.env.CF_AI_GATEWAY_MODEL) {
     }
 }
 
+// MiniMax provider configuration (Anthropic-compatible API)
+if (process.env.MINIMAX_API_KEY) {
+    const modelId = process.env.MINIMAX_MODEL || 'MiniMax-M2.5';
+
+    config.models = config.models || {};
+    config.models.providers = config.models.providers || {};
+    config.models.providers['minimax'] = {
+        baseUrl: 'https://api.minimax.io/anthropic',
+        apiKey: process.env.MINIMAX_API_KEY,
+        api: 'anthropic-messages',
+        models: [{ id: modelId, name: modelId, contextWindow: 204800, maxTokens: 8192 }],
+    };
+    config.agents = config.agents || {};
+    config.agents.defaults = config.agents.defaults || {};
+    config.agents.defaults.model = { primary: 'minimax/' + modelId };
+    console.log('MiniMax provider configured: model=' + modelId);
+}
+
 // Telegram configuration
 // Overwrite entire channel object to drop stale keys from old R2 backups
 // that would fail OpenClaw's strict config validation (see #47)
@@ -253,11 +302,42 @@ if (process.env.DISCORD_BOT_TOKEN) {
 
 // Slack configuration
 if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
+    const groupPolicy = process.env.SLACK_GROUP_POLICY || 'open';
+    const requireMention = process.env.SLACK_REQUIRE_MENTION === 'true';
+    const historyLimit = parseInt(process.env.SLACK_HISTORY_LIMIT, 10) || 10;
     config.channels.slack = {
+        mode: 'socket',
         botToken: process.env.SLACK_BOT_TOKEN,
         appToken: process.env.SLACK_APP_TOKEN,
         enabled: true,
+        groupPolicy: groupPolicy,
+        requireMention: requireMention,
+        historyLimit: historyLimit,
     };
+    // Enable Slack plugin
+    config.plugins = config.plugins || {};
+    config.plugins.entries = config.plugins.entries || {};
+    config.plugins.entries.slack = { enabled: true };
+    console.log('Slack configured: groupPolicy=' + groupPolicy + ' requireMention=' + requireMention);
+}
+
+// Mention patterns for group chats (e.g. "jeff,jeff barnes,@jeff,hey jeff")
+if (process.env.MENTION_PATTERNS) {
+    const patterns = process.env.MENTION_PATTERNS.split(',').map(p => p.trim());
+    config.messages = config.messages || {};
+    config.messages.ackReactionScope = 'group-mentions';
+    config.messages.groupChat = config.messages.groupChat || {};
+    config.messages.groupChat.mentionPatterns = patterns;
+    config.messages.groupChat.historyLimit = config.messages.groupChat.historyLimit || 10;
+    console.log('Mention patterns configured: ' + patterns.join(', '));
+}
+
+// Notion skill configuration
+if (process.env.NOTION_API_KEY) {
+    config.skills = config.skills || {};
+    config.skills.entries = config.skills.entries || {};
+    config.skills.entries.notion = { apiKey: process.env.NOTION_API_KEY };
+    console.log('Notion skill configured');
 }
 
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
