@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moltworker: Deploying Jeff Barnes to Cloudflare</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e4e4ef;
+    --text-dim: #8888a0;
+    --accent: #f97316;
+    --accent-2: #fb923c;
+    --blue: #3b82f6;
+    --green: #22c55e;
+    --purple: #a855f7;
+    --red: #ef4444;
+    --cyan: #06b6d4;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .slide {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    padding: 60px 80px;
+    position: relative;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .slide.active { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Title Slide */
+  .slide.title-slide {
+    background: radial-gradient(ellipse at 30% 50%, rgba(249,115,22,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(59,130,246,0.06) 0%, transparent 50%),
+                var(--bg);
+  }
+
+  .title-slide h1 {
+    font-size: 4.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 20px;
+  }
+
+  .title-slide .subtitle {
+    font-size: 1.4rem;
+    color: var(--text-dim);
+    font-weight: 400;
+    margin-bottom: 40px;
+  }
+
+  .title-slide .meta {
+    display: flex;
+    gap: 24px;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+  }
+
+  .title-slide .meta span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .title-slide .meta .dot {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* Content Slides */
+  .slide h2 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 40px;
+    align-self: flex-start;
+    width: 100%;
+  }
+
+  .slide h2 .num {
+    color: var(--accent);
+    font-weight: 800;
+    margin-right: 12px;
+    font-size: 1.8rem;
+    vertical-align: middle;
+  }
+
+  .slide h3 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--accent-2);
+    margin-bottom: 12px;
+    margin-top: 20px;
+  }
+
+  .content {
+    width: 100%;
+    max-width: 1100px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    width: 100%;
+  }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+
+  .card.accent-border { border-left: 3px solid var(--accent); }
+  .card.blue-border { border-left: 3px solid var(--blue); }
+  .card.green-border { border-left: 3px solid var(--green); }
+  .card.purple-border { border-left: 3px solid var(--purple); }
+  .card.red-border { border-left: 3px solid var(--red); }
+  .card.cyan-border { border-left: 3px solid var(--cyan); }
+
+  .card h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+
+  .card p, .card li {
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  .card ul { list-style: none; padding: 0; }
+  .card ul li::before {
+    content: ">";
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    margin-right: 8px;
+  }
+
+  ul.clean { list-style: none; padding: 0; }
+  ul.clean li {
+    font-size: 1.15rem;
+    line-height: 1.9;
+    color: var(--text);
+    padding: 4px 0;
+  }
+  ul.clean li::before {
+    content: ">";
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    margin-right: 10px;
+  }
+
+  code, .code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: block;
+    line-height: 1.8;
+    color: var(--text);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  code .comment { color: #6b7280; }
+  code .cmd { color: var(--accent-2); }
+  code .string { color: var(--green); }
+  code .flag { color: var(--cyan); }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+
+  .tag.orange { background: rgba(249,115,22,0.15); color: var(--accent); }
+  .tag.blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag.purple { background: rgba(168,85,247,0.15); color: var(--purple); }
+  .tag.red { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.8;
+    color: var(--text-dim);
+    text-align: center;
+    white-space: pre;
+  }
+
+  .diagram .highlight { color: var(--accent); font-weight: 600; }
+  .diagram .blue { color: var(--blue); }
+  .diagram .green { color: var(--green); }
+  .diagram .purple { color: var(--purple); }
+
+  .price-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .price-table th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .price-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .price-table tr:last-child td { border-bottom: none; }
+  .price-table .highlight-row { background: rgba(249,115,22,0.06); }
+  .price-table .dim { color: var(--text-dim); }
+  .price-table .accent { color: var(--accent); font-weight: 600; }
+
+  /* Navigation */
+  .nav {
+    position: fixed;
+    bottom: 30px;
+    right: 40px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .nav button:hover {
+    background: var(--surface-2);
+    border-color: var(--accent);
+  }
+
+  .progress {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.3s ease;
+  }
+
+  .slide-counter {
+    position: fixed;
+    bottom: 38px;
+    left: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .big-number {
+    font-size: 4rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .big-label {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 60px;
+    margin-bottom: 30px;
+  }
+
+  .key-insight {
+    background: linear-gradient(135deg, rgba(249,115,22,0.08), rgba(59,130,246,0.05));
+    border: 1px solid rgba(249,115,22,0.2);
+    border-radius: 12px;
+    padding: 24px 28px;
+    font-size: 1.1rem;
+    line-height: 1.7;
+    margin-top: 16px;
+  }
+
+  .key-insight strong { color: var(--accent); }
+
+  .file-tree {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 2;
+    color: var(--text-dim);
+  }
+  .file-tree .dir { color: var(--blue); }
+  .file-tree .new { color: var(--green); }
+  .file-tree .mod { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Title -->
+<div class="slide title-slide active" id="slide-1">
+  <h1>Deploying Jeff Barnes<br>to Cloudflare</h1>
+  <p class="subtitle">OpenClaw + MiniMax M2.5 + Cloudflare Workers</p>
+  <div class="meta">
+    <span><span class="dot"></span> Mantir AI</span>
+    <span><span class="dot"></span> February 2026</span>
+    <span><span class="dot"></span> moltbot-sandbox.suryamnvln.workers.dev</span>
+  </div>
+</div>
+
+<!-- Slide 2: What We Built -->
+<div class="slide" id="slide-2">
+  <h2><span class="num">01</span> What We Built</h2>
+  <div class="content">
+    <div class="diagram">
+<span class="highlight">Browser / Slack / TUI</span>
+          |
+          v
+<span class="blue">Cloudflare Worker</span> (Hono) ---- <span class="purple">CF Access Auth</span>
+          |
+          v
+<span class="green">Sandbox Container</span> (Docker)
+  |-- OpenClaw Gateway :18789
+  |-- <span class="highlight">MiniMax M2.5</span> (Anthropic-compatible API)
+  |-- Identity: <span class="highlight">Jeff Barnes</span>
+  |-- Slack (Socket Mode)
+  |-- Notion Skill
+          |
+          v
+<span class="blue">R2 Bucket</span> (persistence)
+    </div>
+    <div class="key-insight">
+      <strong>Moltworker</strong> wraps OpenClaw in a Cloudflare Sandbox container, adding auth, persistence, and lifecycle management. We customized it with <strong>MiniMax M2.5</strong> as the AI provider and <strong>Jeff Barnes</strong> as the identity.
+    </div>
+  </div>
+</div>
+
+<!-- Slide 3: MiniMax M2.5 -->
+<div class="slide" id="slide-3">
+  <h2><span class="num">02</span> MiniMax M2.5 API</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <div class="card accent-border">
+          <span class="tag orange">Drop-in Replacement</span>
+          <h4>Anthropic-Compatible API</h4>
+          <p>Just swap two env vars and the Anthropic SDK works as-is:</p>
+          <ul>
+            <li>Base URL: api.minimax.io/anthropic</li>
+            <li>Same Messages API format</li>
+            <li>Supports tools, streaming, thinking</li>
+            <li>204,800 token context window</li>
+          </ul>
+        </div>
+        <div class="card red-border" style="margin-top: 16px;">
+          <span class="tag red">Gotchas</span>
+          <h4>Key Differences</h4>
+          <ul>
+            <li>No vision (image/document input)</li>
+            <li>Temperature cannot be 0.0 (use 0.01)</li>
+            <li>top_k, stop_sequences ignored</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="card green-border">
+          <span class="tag green">Pricing</span>
+          <h4>10-20x Cheaper Than Claude</h4>
+          <table class="price-table">
+            <tr><th>Model</th><th>Input</th><th>Output</th></tr>
+            <tr class="highlight-row"><td class="accent">MiniMax M2.5</td><td>$0.30/M</td><td>$1.20/M</td></tr>
+            <tr><td>M2.5 Highspeed</td><td>$0.30/M</td><td>$2.40/M</td></tr>
+            <tr><td class="dim">Claude Sonnet 4.5</td><td class="dim">$3.00/M</td><td class="dim">$15.00/M</td></tr>
+          </table>
+        </div>
+        <div class="card blue-border" style="margin-top: 16px;">
+          <span class="tag blue">Models</span>
+          <h4>Available Models</h4>
+          <ul>
+            <li>MiniMax-M2.5 (~60 tps)</li>
+            <li>MiniMax-M2.5-highspeed (~100 tps)</li>
+            <li>MiniMax-M2.1 / M2.1-highspeed</li>
+            <li>MiniMax-M2 (agentic/reasoning)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 4: Code Changes -->
+<div class="slide" id="slide-4">
+  <h2><span class="num">03</span> Code Changes We Made</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>New Files</h3>
+        <div class="file-tree">
+<span class="new">+ identity/IDENTITY.md</span>    Jeff Barnes persona
+<span class="new">+ identity/SOUL.md</span>         Core values
+<span class="new">+ identity/HEARTBEAT.md</span>    Current focus & state
+        </div>
+        <h3 style="margin-top: 24px;">Modified Files</h3>
+        <div class="file-tree">
+<span class="mod">~ src/types.ts</span>             +MINIMAX_API_KEY, MINIMAX_MODEL
+                              +SLACK_GROUP_POLICY, etc.
+                              +NOTION_API_KEY, MENTION_PATTERNS
+<span class="mod">~ src/gateway/env.ts</span>       Pass new vars to container
+<span class="mod">~ src/index.ts</span>             Validation recognizes MiniMax
+<span class="mod">~ start-openclaw.sh</span>        MiniMax provider, Slack config,
+                              Notion skill, identity files
+<span class="mod">~ Dockerfile</span>               COPY identity/ to staging dir
+        </div>
+      </div>
+      <div>
+        <h3>MiniMax Provider (start-openclaw.sh)</h3>
+        <code><span class="comment">// Creates a provider entry in openclaw.json</span>
+config.models.providers['minimax'] = {
+  baseUrl: <span class="string">'https://api.minimax.io/anthropic'</span>,
+  apiKey: process.env.MINIMAX_API_KEY,
+  api: <span class="string">'anthropic-messages'</span>,
+  models: [{
+    id: <span class="string">'MiniMax-M2.5'</span>,
+    contextWindow: <span class="string">204800</span>,
+    maxTokens: <span class="string">8192</span>
+  }]
+};</code>
+        <h3 style="margin-top: 16px;">Identity Flow</h3>
+        <code><span class="comment"># Dockerfile: stage files</span>
+<span class="cmd">COPY</span> identity/ /opt/openclaw-identity/
+
+<span class="comment"># start-openclaw.sh: apply after onboard</span>
+<span class="cmd">cp</span> /opt/openclaw-identity/*.md \
+   /root/.openclaw/workspace/</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 5: Secrets & Config -->
+<div class="slide" id="slide-5">
+  <h2><span class="num">04</span> Secrets & Configuration</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>All Secrets We Set</h3>
+        <code><span class="comment"># AI Provider</span>
+<span class="cmd">wrangler secret put</span> MINIMAX_API_KEY
+
+<span class="comment"># Gateway Auth</span>
+<span class="cmd">wrangler secret put</span> MOLTBOT_GATEWAY_TOKEN
+
+<span class="comment"># Slack</span>
+<span class="cmd">wrangler secret put</span> SLACK_BOT_TOKEN
+<span class="cmd">wrangler secret put</span> SLACK_APP_TOKEN
+<span class="cmd">wrangler secret put</span> SLACK_REQUIRE_MENTION
+<span class="cmd">wrangler secret put</span> MENTION_PATTERNS
+
+<span class="comment"># Notion</span>
+<span class="cmd">wrangler secret put</span> NOTION_API_KEY
+
+<span class="comment"># Cloudflare Access (Admin UI)</span>
+<span class="cmd">wrangler secret put</span> CF_ACCESS_TEAM_DOMAIN
+<span class="cmd">wrangler secret put</span> CF_ACCESS_AUD</code>
+      </div>
+      <div>
+        <h3>Config Flow: Env Vars to Container</h3>
+        <div class="card accent-border">
+          <h4>1. Worker receives secrets</h4>
+          <p>Set via <code style="display:inline;padding:2px 6px;">wrangler secret put</code></p>
+        </div>
+        <div class="card blue-border" style="margin-top: 12px;">
+          <h4>2. buildEnvVars() maps them</h4>
+          <p>MOLTBOT_GATEWAY_TOKEN &rarr; OPENCLAW_GATEWAY_TOKEN<br>
+          MINIMAX_API_KEY &rarr; MINIMAX_API_KEY</p>
+        </div>
+        <div class="card green-border" style="margin-top: 12px;">
+          <h4>3. start-openclaw.sh patches config</h4>
+          <p>Node.js patcher writes provider, channels, skills into openclaw.json on every boot</p>
+        </div>
+        <div class="card purple-border" style="margin-top: 12px;">
+          <h4>4. Gateway starts with config</h4>
+          <p>openclaw gateway --token $TOKEN --port 18789</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 6: Key Learnings -->
+<div class="slide" id="slide-6">
+  <h2><span class="num">05</span> Key Learnings</h2>
+  <div class="content">
+    <div class="three-col">
+      <div class="card accent-border">
+        <span class="tag orange">Architecture</span>
+        <h4>Container != Worker</h4>
+        <p>Worker code deploys instantly. Container keeps running with OLD env vars until explicitly restarted. Rotating a secret requires container restart, not just redeploy.</p>
+      </div>
+      <div class="card blue-border">
+        <span class="tag blue">File Paths</span>
+        <h4>Two "Workspace" Dirs</h4>
+        <p><strong>/root/clawd/</strong> = user workspace (R2 synced)<br><br>
+        <strong>/root/.openclaw/workspace/</strong> = OpenClaw's internal workspace where identity files (IDENTITY.md, SOUL.md) must live</p>
+      </div>
+      <div class="card green-border">
+        <span class="tag green">Config</span>
+        <h4>Env Vars are King</h4>
+        <p>The startup patcher overwrites provider, channel, and auth config on every boot. Manual openclaw.json edits to those fields won't survive a restart. Use secrets.</p>
+      </div>
+      <div class="card purple-border">
+        <span class="tag purple">Validation</span>
+        <h4>Add New Providers to Checks</h4>
+        <p>The worker validates required env vars on every request. Adding MiniMax required updating validateRequiredEnv() or the "Configuration Required" page blocks everything.</p>
+      </div>
+      <div class="card red-border">
+        <span class="tag red">Docker</span>
+        <h4>BuildKit Required</h4>
+        <p>Wrangler uses <code style="display:inline;padding:2px 6px;">--load</code> flag which needs Docker BuildKit (buildx). Legacy builder fails. Also need <code style="display:inline;padding:2px 6px;">docker</code> group membership in WSL.</p>
+      </div>
+      <div class="card cyan-border">
+        <span class="tag blue">CF Access</span>
+        <h4>AUD Must Match Exactly</h4>
+        <p>Deleting/recreating the container app can generate a new Durable Object namespace, which may invalidate the CF Access AUD tag. Always re-verify after container changes.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 7: Useful Commands -->
+<div class="slide" id="slide-7">
+  <h2><span class="num">06</span> Command Reference</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>Deploy & Build</h3>
+        <code><span class="comment"># Full deploy (build + push)</span>
+<span class="cmd">npm run deploy</span>
+
+<span class="comment"># Force clean Docker rebuild</span>
+<span class="cmd">docker builder prune -af</span> && npm run deploy
+
+<span class="comment"># Just build locally</span>
+<span class="cmd">npm run build</span>
+
+<span class="comment"># Type check</span>
+<span class="cmd">npx tsc --noEmit</span>
+
+<span class="comment"># Run tests</span>
+<span class="cmd">npx vitest run</span></code>
+
+        <h3 style="margin-top: 20px;">Secrets Management</h3>
+        <code><span class="comment"># Set a secret</span>
+<span class="cmd">npx wrangler secret put</span> SECRET_NAME
+
+<span class="comment"># Pipe a value (non-interactive)</span>
+echo <span class="string">"value"</span> | <span class="cmd">npx wrangler secret put</span> NAME
+
+<span class="comment"># List all secrets</span>
+<span class="cmd">npx wrangler secret list</span>
+
+<span class="comment"># Generate secure token</span>
+<span class="cmd">openssl rand -hex 32</span></code>
+      </div>
+      <div>
+        <h3>Container Management</h3>
+        <code><span class="comment"># List running containers</span>
+<span class="cmd">npx wrangler containers list</span>
+
+<span class="comment"># Delete container (force restart)</span>
+<span class="cmd">npx wrangler containers delete</span> &lt;ID&gt;
+
+<span class="comment"># View live worker logs</span>
+<span class="cmd">npx wrangler tail</span>
+
+<span class="comment"># View logs as JSON</span>
+<span class="cmd">npx wrangler tail</span> <span class="flag">--format json</span></code>
+
+        <h3 style="margin-top: 20px;">Docker in WSL</h3>
+        <code><span class="comment"># Install Docker + BuildKit</span>
+<span class="cmd">sudo apt-get install -y</span> docker.io docker-buildx
+
+<span class="comment"># Start daemon</span>
+<span class="cmd">sudo dockerd &</span>
+
+<span class="comment"># Add yourself to docker group</span>
+<span class="cmd">sudo usermod -aG docker</span> $USER
+<span class="cmd">newgrp docker</span>
+
+<span class="comment"># Verify</span>
+<span class="cmd">docker info</span></code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 8: Access URLs -->
+<div class="slide" id="slide-8">
+  <h2><span class="num">07</span> Access & Endpoints</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>Key URLs</h3>
+        <div class="card accent-border">
+          <h4>Control UI (Chat)</h4>
+          <p style="word-break:break-all;font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--text);">
+            https://moltbot-sandbox.suryamnvln.workers.dev/?token=YOUR_TOKEN
+          </p>
+        </div>
+        <div class="card blue-border" style="margin-top: 12px;">
+          <h4>Admin Dashboard</h4>
+          <p style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--text);">
+            https://...workers.dev/_admin/
+          </p>
+          <p>Protected by Cloudflare Access</p>
+        </div>
+        <div class="card green-border" style="margin-top: 12px;">
+          <h4>Debug Endpoints</h4>
+          <p style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:var(--text);">
+            /debug/container-config<br>
+            /debug/processes<br>
+            /debug/cli?cmd=...<br>
+            /debug/version
+          </p>
+          <p>Requires DEBUG_ROUTES=true</p>
+        </div>
+      </div>
+      <div>
+        <h3>Monthly Cost (Always-On)</h3>
+        <table class="price-table">
+          <tr><th>Resource</th><th>Cost</th></tr>
+          <tr><td>Workers Paid Plan</td><td>$5/mo</td></tr>
+          <tr><td>Container Memory (4 GiB)</td><td>~$26/mo</td></tr>
+          <tr><td>CPU (idle ~2-5%)</td><td>~$1/mo</td></tr>
+          <tr><td>Disk (8 GB)</td><td>~$1.50/mo</td></tr>
+          <tr><td>Cron keep-alive (288/day)</td><td>Free</td></tr>
+          <tr><td>R2 / CF Access</td><td>Free tier</td></tr>
+          <tr class="highlight-row"><td class="accent"><strong>Total</strong></td><td class="accent"><strong>~$34/mo</strong></td></tr>
+        </table>
+        <div class="key-insight" style="margin-top: 16px;">
+          <strong>Always-on is required</strong> for Slack Socket Mode. The 5-min cron keeps the container warm so Jeff never misses a message.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 9: Persistence -->
+<div class="slide" id="slide-9">
+  <h2><span class="num">08</span> Persistence & Lifecycle</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>R2 Backup Strategy</h3>
+        <div class="card green-border">
+          <h4>On Container Boot</h4>
+          <ul>
+            <li>Check R2 for existing backup</li>
+            <li>Restore config, workspace, skills</li>
+            <li>Run onboard only if no config exists</li>
+            <li>Apply custom identity files</li>
+            <li>Patch config from env vars</li>
+          </ul>
+        </div>
+        <div class="card blue-border" style="margin-top: 12px;">
+          <h4>During Operation</h4>
+          <ul>
+            <li>Background sync every 30 seconds</li>
+            <li>Only uploads changed files</li>
+            <li>Excludes .lock, .log, .tmp, .git</li>
+            <li>Manual backup via admin UI</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <h3>What Survives Restarts</h3>
+        <table class="price-table">
+          <tr><th>Data</th><th>Without R2</th><th>With R2</th></tr>
+          <tr><td>Config (openclaw.json)</td><td class="dim">Lost</td><td class="accent">Persists</td></tr>
+          <tr><td>Paired devices</td><td class="dim">Lost</td><td class="accent">Persists</td></tr>
+          <tr><td>Chat history</td><td class="dim">Lost</td><td class="accent">Persists</td></tr>
+          <tr><td>Identity edits</td><td class="dim">Lost</td><td class="accent">Persists</td></tr>
+          <tr><td>Workspace files</td><td class="dim">Lost</td><td class="accent">Persists</td></tr>
+        </table>
+        <div class="key-insight" style="margin-top: 16px;">
+          <strong>R2 secrets needed:</strong> R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, CF_ACCOUNT_ID. Create an R2 API token with Object Read & Write on the moltbot-data bucket.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 10: Cron Keep-Alive -->
+<div class="slide" id="slide-10">
+  <h2><span class="num">09</span> Always-On: Cron Keep-Alive</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>The Problem</h3>
+        <div class="card red-border">
+          <span class="tag red">Discovery</span>
+          <h4>Container Sleeps Overnight</h4>
+          <ul>
+            <li>Slack uses Socket Mode (WebSocket inside container)</li>
+            <li>No incoming HTTP requests at night &rarr; DO evicted</li>
+            <li>WebSocket drops &rarr; Slack messages lost</li>
+            <li>Heartbeats and cron jobs stop running</li>
+            <li>keepAlive: true isn't enough alone</li>
+          </ul>
+        </div>
+        <div class="card green-border" style="margin-top: 16px;">
+          <span class="tag green">Solution</span>
+          <h4>5-Minute Cron Trigger</h4>
+          <ul>
+            <li>Pings Worker every 5 min &rarr; keeps DO alive</li>
+            <li>If gateway is down, starts it automatically</li>
+            <li>Slack WebSocket stays connected 24/7</li>
+            <li>Cron triggers are free (count as requests)</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <h3>What We Added</h3>
+        <code><span class="comment">// wrangler.jsonc - cron trigger</span>
+"triggers": {
+  "crons": [<span class="string">"*/5 * * * *"</span>]
+}
+
+<span class="comment">// src/index.ts - scheduled handler</span>
+async scheduled(event, env, ctx) {
+  <span class="comment">// Touch the sandbox DO to keep it alive</span>
+  const sandbox = getSandbox(env.Sandbox);
+  const proc = await findExistingProcess(sandbox);
+
+  if (!proc || proc.status !== <span class="string">'running'</span>) {
+    <span class="comment">// Gateway died, restart it</span>
+    ctx.waitUntil(ensureGateway(sandbox, env));
+  }
+}</code>
+        <h3 style="margin-top: 16px;">Cost Impact</h3>
+        <table class="price-table">
+          <tr><th>Component</th><th>Cost</th></tr>
+          <tr><td>Cron requests (288/day)</td><td class="accent">Free</td></tr>
+          <tr><td>Container memory (4 GiB 24/7)</td><td>~$26/mo</td></tr>
+          <tr><td>CPU (idle ~2-5%)</td><td>~$1/mo</td></tr>
+          <tr><td>Disk (8 GB)</td><td>~$1.50/mo</td></tr>
+          <tr class="highlight-row"><td class="accent"><strong>Always-on total</strong></td><td class="accent"><strong>~$28-29/mo</strong></td></tr>
+          <tr><td class="dim">vs. sleep mode (4h/day)</td><td class="dim">~$5-6/mo</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="key-insight" style="margin-top: 20px;">
+      <strong>Why not webhooks?</strong> Slack Socket Mode maintains a persistent WebSocket from inside the container &mdash; there's no webhook URL the Worker can receive. The container must stay alive to receive messages. The cron is the simplest, cheapest way to guarantee that.
+    </div>
+  </div>
+</div>
+
+<!-- Slide 11: What's Next -->
+<div class="slide" id="slide-11">
+  <h2><span class="num">10</span> Next Steps</h2>
+  <div class="content">
+    <div class="three-col">
+      <div class="card accent-border">
+        <span class="tag orange">Short Term</span>
+        <h4>Admin Identity Editor</h4>
+        <ul>
+          <li>API endpoint to read/write .md files</li>
+          <li>Admin UI editor for identity</li>
+          <li>Live edit without redeploy</li>
+          <li>R2 persists edits</li>
+        </ul>
+      </div>
+      <div class="card blue-border">
+        <span class="tag blue">Optimization</span>
+        <h4>Cost Tuning</h4>
+        <ul>
+          <li>Always-on: ~$29/mo (current)</li>
+          <li>Sleep mode: ~$6/mo (messages lost)</li>
+          <li>Could explore Slack webhooks to allow sleep + responsiveness</li>
+        </ul>
+      </div>
+      <div class="card green-border">
+        <span class="tag green">Production</span>
+        <h4>Harden & Scale</h4>
+        <ul>
+          <li>Enable R2 persistence</li>
+          <li>Enable DEBUG_ROUTES for ops</li>
+          <li>Multi-moltbot fleet management</li>
+          <li>Custom skills development</li>
+        </ul>
+      </div>
+    </div>
+    <div class="key-insight" style="margin-top: 30px;">
+      Jeff Barnes is always-on at <strong>moltbot-sandbox.suryamnvln.workers.dev</strong> &mdash; running MiniMax M2.5 at 1/10th the cost of Claude, connected to Slack 24/7 via cron keep-alive, with Notion integration, deployed on Cloudflare's edge. First moltbot for Mantir.
+    </div>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button onclick="prevSlide()">&#8592;</button>
+  <button onclick="nextSlide()">&#8594;</button>
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="slide-counter" id="counter">1 / 11</div>
+
+<script>
+  let current = 1;
+  const total = 11;
+
+  function showSlide(n) {
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    const slide = document.getElementById(`slide-${n}`);
+    if (slide) {
+      slide.classList.add('active');
+      // Re-trigger animation
+      slide.style.animation = 'none';
+      slide.offsetHeight;
+      slide.style.animation = null;
+    }
+    document.getElementById('progress').style.width = `${(n / total) * 100}%`;
+    document.getElementById('counter').textContent = `${n} / ${total}`;
+  }
+
+  function nextSlide() {
+    if (current < total) { current++; showSlide(current); }
+  }
+
+  function prevSlide() {
+    if (current > 1) { current--; showSlide(current); }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+  });
+
+  // Touch support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) { diff > 0 ? nextSlide() : prevSlide(); }
+  });
+
+  showSlide(1);
+</script>
+
+</body>
+</html>

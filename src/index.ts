@@ -447,4 +447,39 @@ app.all('*', async (c) => {
 
 export default {
   fetch: app.fetch,
+
+  /**
+   * Scheduled handler - runs every 5 minutes via cron trigger.
+   *
+   * Keeps the container warm so that:
+   * - Slack/Discord Socket Mode connections stay alive
+   * - OpenClaw heartbeats and cron jobs keep running
+   * - Cold start latency is avoided for incoming messages
+   */
+  async scheduled(event: ScheduledEvent, env: MoltbotEnv, ctx: ExecutionContext) {
+    console.log('[CRON] Keep-alive tick at', new Date(event.scheduledTime).toISOString());
+
+    try {
+      const options = buildSandboxOptions(env);
+      const sandbox = getSandbox(env.Sandbox, 'moltbot', options);
+
+      // Check if gateway is running
+      const existingProcess = await findExistingMoltbotProcess(sandbox);
+
+      if (existingProcess && existingProcess.status === 'running') {
+        // Gateway is running - just touching the sandbox keeps the DO alive
+        console.log('[CRON] Gateway is running, process:', existingProcess.id);
+      } else {
+        // Gateway is not running - start it up
+        console.log('[CRON] Gateway not running, starting it...');
+        ctx.waitUntil(
+          ensureMoltbotGateway(sandbox, env)
+            .then(() => console.log('[CRON] Gateway started successfully'))
+            .catch((err: Error) => console.error('[CRON] Failed to start gateway:', err)),
+        );
+      }
+    } catch (err) {
+      console.error('[CRON] Keep-alive failed:', err);
+    }
+  },
 };
