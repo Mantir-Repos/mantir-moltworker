@@ -867,6 +867,51 @@ async scheduled(event, env, ctx) {
   </div>
 </div>
 
+<!-- Slide 12: Cron/Heartbeat Fix -->
+<div class="slide" id="slide-12">
+  <h2><span class="num">11</span> Fix: Cron & Heartbeat Never Fired</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <div class="card red-border">
+          <span class="tag red">Bug</span>
+          <h4>Symptoms</h4>
+          <ul>
+            <li>Cron jobs never ran automatically</li>
+            <li>Heartbeat never sent a Slack message</li>
+            <li>Manual cron triggers worked fine</li>
+            <li>Slack responses worked fine</li>
+          </ul>
+        </div>
+        <div class="card accent-border" style="margin-top: 16px;">
+          <span class="tag orange">Root Cause</span>
+          <h4>OpenClaw 2026.2.3 Scheduler Bugs</h4>
+          <ul>
+            <li><strong>Silent-death race</strong> — scheduler crashed on startup with no error (fixed in 2026.2.13)</li>
+            <li><strong>Stall on error</strong> — one failed run froze the scheduler permanently (fixed in 2026.2.14)</li>
+            <li>Heartbeat &amp; cron are separate from the gateway — both rely on the same internal scheduler</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div class="card green-border">
+          <span class="tag green">Fix</span>
+          <h4>One Line in Dockerfile</h4>
+          <code><span class="comment"># Before</span>
+RUN npm install -g <span class="string">openclaw@2026.2.3</span>
+
+<span class="comment"># After</span>
+RUN npm install -g <span class="string">openclaw@2026.2.17</span></code>
+          <p style="margin-top: 12px;">Rebuilt and redeployed. Cron and heartbeat both started firing immediately.</p>
+        </div>
+        <div class="key-insight" style="margin-top: 16px;">
+          <strong>Heartbeats ≠ Cron triggers.</strong> They are independent features, both driven by OpenClaw's internal scheduler (croner). Slack working was misleading — the gateway handles incoming messages without the scheduler. Keep OpenClaw up to date; <strong>openclaw update</strong> exists but won't persist in a container — bump the Dockerfile version instead.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Navigation -->
 <div class="nav">
   <button onclick="prevSlide()">&#8592;</button>
@@ -874,11 +919,11 @@ async scheduled(event, env, ctx) {
 </div>
 
 <div class="progress" id="progress"></div>
-<div class="slide-counter" id="counter">1 / 11</div>
+<div class="slide-counter" id="counter">1 / 12</div>
 
 <script>
   let current = 1;
-  const total = 11;
+  const total = 12;
 
   function showSlide(n) {
     document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
