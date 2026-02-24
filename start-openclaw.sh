@@ -101,12 +101,12 @@ if r2_configured; then
         echo "Skills restored"
     fi
 
-    # Restore gog credentials (Google Workspace auth tokens)
+    # Restore gog credentials (Google Workspace OAuth tokens + client credentials)
     REMOTE_GOG_COUNT=$(rclone ls "r2:${R2_BUCKET}/gog/" $RCLONE_FLAGS 2>/dev/null | wc -l)
     if [ "$REMOTE_GOG_COUNT" -gt 0 ]; then
         echo "Restoring gog credentials from R2..."
-        mkdir -p /root/.config/gog
-        rclone copy "r2:${R2_BUCKET}/gog/" /root/.config/gog/ $RCLONE_FLAGS 2>&1 || echo "WARNING: gog credentials restore failed"
+        mkdir -p /root/.config/gogcli
+        rclone copy "r2:${R2_BUCKET}/gog/" /root/.config/gogcli/ $RCLONE_FLAGS 2>&1 || echo "WARNING: gog credentials restore failed"
         echo "gog credentials restored"
     fi
 else
@@ -412,8 +412,8 @@ if r2_configured; then
                     rclone sync "$SKILLS_DIR/" "r2:${R2_BUCKET}/skills/" \
                         $RCLONE_FLAGS 2>> "$LOGFILE"
                 fi
-                if [ -d /root/.config/gog ]; then
-                    rclone sync /root/.config/gog/ "r2:${R2_BUCKET}/gog/" \
+                if [ -d /root/.config/gogcli ]; then
+                    rclone sync /root/.config/gogcli/ "r2:${R2_BUCKET}/gog/" \
                         $RCLONE_FLAGS 2>> "$LOGFILE"
                 fi
                 date -Iseconds > "$LAST_SYNC_FILE"
@@ -428,24 +428,28 @@ fi
 # ============================================================
 # GOG (GOOGLE WORKSPACE) CONFIGURATION
 # ============================================================
+# Use file-based keyring — no OS keychain available in container
 export GOG_KEYRING_BACKEND=file
+if [ -n "$GOG_KEYRING_PASSWORD" ]; then
+    export GOG_KEYRING_PASSWORD="$GOG_KEYRING_PASSWORD"
+fi
 if [ -n "$GOG_ACCOUNT" ]; then
     export GOG_ACCOUNT="$GOG_ACCOUNT"
 fi
 
-# Service account path (preferred — no browser auth, no keyring needed)
-# GOG_SERVICE_ACCOUNT_KEY is the base64-encoded service account JSON key
-if [ -n "$GOG_SERVICE_ACCOUNT_KEY" ] && [ -n "$GOG_ACCOUNT" ]; then
-    echo "Configuring gog service account for $GOG_ACCOUNT..."
+# Store the OAuth Desktop app client credentials (client_secret JSON from GCP).
+# GOG_OAUTH_CREDENTIALS is the base64-encoded client_secret_*.json file.
+# This registers the OAuth client with gog — the actual refresh token comes
+# from the keyring files restored from R2 above (written by a one-time local auth).
+if [ -n "$GOG_OAUTH_CREDENTIALS" ]; then
+    echo "Configuring gog OAuth client credentials..."
     mkdir -p /root/.config/gogcli
-    echo "$GOG_SERVICE_ACCOUNT_KEY" | base64 -d > /root/.config/gogcli/service-account.json
-    chmod 600 /root/.config/gogcli/service-account.json
-    gog auth service-account set "$GOG_ACCOUNT" --key /root/.config/gogcli/service-account.json \
-        && echo "gog service account configured" \
-        || echo "WARNING: gog service account setup failed"
-elif [ -n "$GOG_KEYRING_PASSWORD" ]; then
-    # Fallback: OAuth path (personal Gmail or if no service account configured)
-    echo "gog file keyring configured (OAuth path)"
+    echo "$GOG_OAUTH_CREDENTIALS" | base64 -d > /tmp/gog-credentials.json
+    chmod 600 /tmp/gog-credentials.json
+    gog auth credentials /tmp/gog-credentials.json \
+        && echo "gog OAuth client configured" \
+        || echo "WARNING: gog auth credentials failed"
+    rm -f /tmp/gog-credentials.json
 fi
 
 # ============================================================

@@ -959,6 +959,117 @@ RUN npm install -g <span class="string">openclaw@2026.2.17</span></code>
   </div>
 </div>
 
+<!-- Slide 14: Google Workspace (gog) Integration -->
+<div class="slide" id="slide-14">
+  <h2><span class="num">13</span> Google Workspace via gog</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <div class="card green-border">
+          <span class="tag green">What Jeff Can Now Do</span>
+          <h4>Full Google Suite Access</h4>
+          <ul>
+            <li>Gmail — search, read, send, label threads</li>
+            <li>Calendar — list, create, update events</li>
+            <li>Drive — list, upload, download, share files</li>
+            <li>Sheets — read/write spreadsheets</li>
+            <li>Docs / Slides — export, create, edit</li>
+            <li>Contacts — search directory</li>
+            <li>Tasks — manage task lists</li>
+          </ul>
+        </div>
+        <div class="card blue-border" style="margin-top: 16px;">
+          <span class="tag blue">How It Works</span>
+          <h4>gog CLI + File Keyring</h4>
+          <ul>
+            <li>gog binary installed in Docker image at build time</li>
+            <li>OAuth tokens stored encrypted in <code style="display:inline;padding:2px 4px;">~/.config/gogcli/keyring/</code></li>
+            <li>R2 backs up keyring dir — survives container restarts</li>
+            <li>GOG_KEYRING_BACKEND=file — no OS keychain needed</li>
+            <li>GOG_KEYRING_PASSWORD decrypts tokens non-interactively</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <h3>Flow: Container Start → gog Ready</h3>
+        <div class="diagram" style="font-size:0.8rem; text-align:left; line-height:2;">
+<span class="green">R2 restore</span>  →  <code>~/.config/gogcli/</code> (keyring files)
+        ↓
+<span class="highlight">GOG_OAUTH_CREDENTIALS</span> (base64 secret)
+  decoded → <code>gog auth credentials</code>
+        ↓
+<span class="blue">GOG_KEYRING_BACKEND=file</span>
+<span class="blue">GOG_KEYRING_PASSWORD</span> = decrypt key
+        ↓
+<span class="green">gog ready</span> — uses surya@mantir.com OAuth token
+        ↓
+<span class="green">30s sync loop</span> pushes rotated tokens back to R2
+        </div>
+        <div class="key-insight" style="margin-top: 16px;">
+          <strong>One-time auth only.</strong> Token is stored in R2, restored on every boot, and auto-refreshed by gog as it rotates. No browser needed after initial setup.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 15: gog Setup Steps -->
+<div class="slide" id="slide-15">
+  <h2><span class="num">14</span> gog Setup: What We Did</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <h3>GCP Setup</h3>
+        <div class="card accent-border">
+          <span class="tag red">Gotcha: Org Policy</span>
+          <h4>Service Account Keys Blocked</h4>
+          <p style="margin-bottom:10px;"><code style="display:inline;padding:2px 6px;">iam.disableServiceAccountKeyCreation</code> org policy prevented JSON key download. Fell back to OAuth Desktop app client instead.</p>
+          <ul>
+            <li>APIs & Services → Credentials → OAuth client ID</li>
+            <li>Application type: <strong>Desktop app</strong></li>
+            <li>Download <code style="display:inline;padding:2px 4px;">client_secret_*.json</code></li>
+            <li>Enable: Gmail, Calendar, Drive, Sheets, Contacts, Tasks APIs</li>
+          </ul>
+        </div>
+        <div class="card blue-border" style="margin-top: 14px;">
+          <h4>Secrets Set</h4>
+          <code style="font-size:0.78rem;"><span class="comment"># base64-encoded client_secret JSON</span>
+<span class="cmd">cat</span> client_secret_*.json | base64 -w 0 \
+  | <span class="cmd">wrangler secret put</span> GOG_OAUTH_CREDENTIALS
+
+<span class="cmd">wrangler secret put</span> GOG_KEYRING_PASSWORD
+<span class="cmd">wrangler secret put</span> GOG_ACCOUNT  <span class="comment"># surya@mantir.com</span></code>
+        </div>
+      </div>
+      <div>
+        <h3>Code Changes</h3>
+        <div class="file-tree" style="margin-bottom:16px;">
+<span class="mod">~ Dockerfile</span>          curl + install gog v0.11.0 linux binary
+<span class="mod">~ start-openclaw.sh</span>   R2 restore <span class="green">~/.config/gogcli/</span>
+                          gog auth credentials from GOG_OAUTH_CREDENTIALS
+                          export GOG_KEYRING_BACKEND=file
+                          sync gogcli/ back to R2 every 30s
+<span class="mod">~ src/types.ts</span>        +GOG_OAUTH_CREDENTIALS, GOG_KEYRING_PASSWORD,
+                           GOG_ACCOUNT
+<span class="mod">~ src/gateway/env.ts</span>  forward all three vars to container
+        </div>
+        <h3>One-Time Auth (never needed again)</h3>
+        <code style="font-size:0.78rem;"><span class="comment"># Remote split flow — no browser on server needed</span>
+<span class="cmd">gog auth add</span> surya@mantir.com <span class="flag">--remote --step 1</span>
+<span class="comment"># → prints auth URL → open in browser → authorize</span>
+
+<span class="cmd">gog auth add</span> surya@mantir.com <span class="flag">--remote --step 2</span> \
+  <span class="flag">--auth-url</span> <span class="string">'http://127.0.0.1:34923/oauth2/callback?...'</span>
+
+<span class="comment"># Upload keyring to R2</span>
+<span class="cmd">wrangler r2 object put</span> moltbot-data/gog/credentials.json <span class="flag">--remote</span>
+<span class="cmd">wrangler r2 object put</span> moltbot-data/gog/keyring/token:default:surya@mantir.com <span class="flag">--remote</span>
+<span class="cmd">wrangler r2 object put</span> moltbot-data/gog/keyring/token:surya@mantir.com <span class="flag">--remote</span></code>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Navigation -->
 <div class="nav">
   <button onclick="prevSlide()">&#8592;</button>
@@ -966,11 +1077,11 @@ RUN npm install -g <span class="string">openclaw@2026.2.17</span></code>
 </div>
 
 <div class="progress" id="progress"></div>
-<div class="slide-counter" id="counter">1 / 13</div>
+<div class="slide-counter" id="counter">1 / 15</div>
 
 <script>
   let current = 1;
-  const total = 13;
+  const total = 15;
 
   function showSlide(n) {
     document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));

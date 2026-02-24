@@ -39,9 +39,9 @@ export interface MoltbotEnv {
   MENTION_PATTERNS?: string; // Comma-separated mention patterns, e.g. "jeff,jeff barnes,@jeff"
   NOTION_API_KEY?: string; // Notion integration API key for the Notion skill
   // Google Workspace (gog) configuration
-  GOG_SERVICE_ACCOUNT_KEY?: string; // Base64-encoded service account JSON key (preferred: domain-wide delegation, no browser auth needed)
-  GOG_KEYRING_PASSWORD?: string; // Passphrase for gog's file-based keyring (only needed for OAuth/personal Gmail path)
-  GOG_ACCOUNT?: string; // Google account email to impersonate via service account (or default OAuth account)
+  GOG_OAUTH_CREDENTIALS?: string; // Base64-encoded OAuth Desktop app client_secret JSON from GCP Console
+  GOG_KEYRING_PASSWORD?: string; // Passphrase for gog's file-based keyring (encrypts stored refresh tokens)
+  GOG_ACCOUNT?: string; // Default Google account email (e.g. surya@mantir.ai)
   // Cloudflare Access configuration for admin routes
   CF_ACCESS_TEAM_DOMAIN?: string; // e.g., 'myteam.cloudflareaccess.com'
   CF_ACCESS_AUD?: string; // Application Audience (AUD) tag
