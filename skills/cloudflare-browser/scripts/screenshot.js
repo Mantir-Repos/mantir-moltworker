@@ -17,6 +17,10 @@ if (!CDP_SECRET) {
 const WORKER_URL = process.env.WORKER_URL.replace(/^https?:\/\//, '');
 const WS_URL = `wss://${WORKER_URL}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`;
 
+const WS_HEADERS = {};
+if (process.env.CF_ACCESS_CLIENT_ID) WS_HEADERS['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID;
+if (process.env.CF_ACCESS_CLIENT_SECRET) WS_HEADERS['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET;
+
 const url = process.argv[2];
 const output = process.argv[3] || 'screenshot.png';
 
@@ -31,7 +35,7 @@ const pending = new Map();
 async function main() {
   console.log(`Capturing screenshot of ${url}`);
   
-  const ws = new WebSocket(WS_URL);
+  const ws = new WebSocket(WS_URL, { headers: WS_HEADERS });
   let targetResolve;
   const targetReady = new Promise(r => { targetResolve = r; });
   

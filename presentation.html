@@ -912,6 +912,53 @@ RUN npm install -g <span class="string">openclaw@2026.2.17</span></code>
   </div>
 </div>
 
+<!-- Slide 13: Browser/CDP Fix -->
+<div class="slide" id="slide-13">
+  <h2><span class="num">12</span> Fix: Cloudflare Browser Rendering</h2>
+  <div class="content">
+    <div class="two-col">
+      <div>
+        <div class="card red-border">
+          <span class="tag red">Problem</span>
+          <h4>Browser Tool Always Failed</h4>
+          <ul>
+            <li>Built-in <code style="display:inline;padding:2px 6px;">browser</code> tool needs local Chrome + extension relay — not available in container</li>
+            <li>CF Access blocked the <code style="display:inline;padding:2px 6px;">/cdp</code> WebSocket endpoint (302 redirect)</li>
+            <li>R2 was restoring old skill scripts on every boot, overriding image updates</li>
+            <li>WORKER_URL secret had token baked in, breaking WebSocket URL construction</li>
+          </ul>
+        </div>
+        <div class="card accent-border" style="margin-top: 16px;">
+          <span class="tag orange">Architecture</span>
+          <h4>How CDP Works</h4>
+          <div class="diagram" style="padding: 16px; font-size: 0.78rem; text-align:left;">
+<span class="highlight">Container script</span> (screenshot.js)
+  &darr; wss:// + CF-Access-Client-Id/Secret headers
+<span class="blue">Worker /cdp endpoint</span> (WebSocket)
+  &darr; Puppeteer API
+<span class="green">Cloudflare Browser Rendering</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card green-border">
+          <span class="tag green">Fixes</span>
+          <h4>What We Changed</h4>
+          <ul>
+            <li><strong>CF Access service token</strong> — created <code style="display:inline;padding:2px 6px;">cdp-client</code> token, added Bypass policy to main Access app</li>
+            <li><strong>Skill scripts updated</strong> — send <code style="display:inline;padding:2px 6px;">CF-Access-Client-Id</code> / <code style="display:inline;padding:2px 6px;">CF-Access-Client-Secret</code> headers on WebSocket connect</li>
+            <li><strong>Bundled skills staging</strong> — skills copied to <code style="display:inline;padding:2px 6px;">/opt/openclaw-bundled-skills/</code> in image, applied after R2 restore so updates are never overwritten</li>
+            <li><strong>/cdp HTTP response</strong> — returns CDP discovery JSON (not error) so OpenClaw reachability check passes</li>
+            <li><strong>SOUL.md</strong> — explicit instruction to use skill scripts, never the built-in browser tool</li>
+          </ul>
+        </div>
+        <div class="key-insight" style="margin-top: 16px;">
+          <strong>CF Access path bypass doesn't work for Workers apps.</strong> Path rules are only supported for SaaS/Tunnel apps. The correct pattern is a <strong>service token bypass policy</strong> on the main application — machine-to-machine auth via headers, no OAuth required.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Navigation -->
 <div class="nav">
   <button onclick="prevSlide()">&#8592;</button>
@@ -919,11 +966,11 @@ RUN npm install -g <span class="string">openclaw@2026.2.17</span></code>
 </div>
 
 <div class="progress" id="progress"></div>
-<div class="slide-counter" id="counter">1 / 12</div>
+<div class="slide-counter" id="counter">1 / 13</div>
 
 <script>
   let current = 1;
-  const total = 12;
+  const total = 13;
 
   function showSlide(n) {
     document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));

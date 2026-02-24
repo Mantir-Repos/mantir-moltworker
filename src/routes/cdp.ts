@@ -66,96 +66,33 @@ interface CDPSession {
  * Connect with: ws://host/cdp?secret=<CDP_SECRET>
  */
 cdp.get('/', async (c) => {
-  // Check for WebSocket upgrade
-  const upgradeHeader = c.req.header('Upgrade');
-  if (upgradeHeader?.toLowerCase() !== 'websocket') {
-    return c.json({
-      error: 'WebSocket upgrade required',
-      hint: 'Connect via WebSocket: ws://host/cdp?secret=<CDP_SECRET>',
-      supported_methods: [
-        // Browser
-        'Browser.getVersion',
-        'Browser.close',
-        // Target
-        'Target.createTarget',
-        'Target.closeTarget',
-        'Target.getTargets',
-        'Target.attachToTarget',
-        // Page
-        'Page.navigate',
-        'Page.reload',
-        'Page.captureScreenshot',
-        'Page.getFrameTree',
-        'Page.getLayoutMetrics',
-        'Page.bringToFront',
-        'Page.setContent',
-        'Page.printToPDF',
-        'Page.addScriptToEvaluateOnNewDocument',
-        'Page.removeScriptToEvaluateOnNewDocument',
-        'Page.handleJavaScriptDialog',
-        'Page.stopLoading',
-        'Page.getNavigationHistory',
-        'Page.navigateToHistoryEntry',
-        'Page.setBypassCSP',
-        // Runtime
-        'Runtime.evaluate',
-        'Runtime.callFunctionOn',
-        'Runtime.getProperties',
-        'Runtime.releaseObject',
-        'Runtime.releaseObjectGroup',
-        // DOM
-        'DOM.getDocument',
-        'DOM.querySelector',
-        'DOM.querySelectorAll',
-        'DOM.getOuterHTML',
-        'DOM.getAttributes',
-        'DOM.setAttributeValue',
-        'DOM.focus',
-        'DOM.getBoxModel',
-        'DOM.scrollIntoViewIfNeeded',
-        'DOM.removeNode',
-        'DOM.setNodeValue',
-        'DOM.setFileInputFiles',
-        // Input
-        'Input.dispatchMouseEvent',
-        'Input.dispatchKeyEvent',
-        'Input.insertText',
-        // Network
-        'Network.enable',
-        'Network.disable',
-        'Network.setCacheDisabled',
-        'Network.setExtraHTTPHeaders',
-        'Network.setCookie',
-        'Network.setCookies',
-        'Network.getCookies',
-        'Network.deleteCookies',
-        'Network.clearBrowserCookies',
-        'Network.setUserAgentOverride',
-        // Fetch (Request Interception)
-        'Fetch.enable',
-        'Fetch.disable',
-        'Fetch.continueRequest',
-        'Fetch.fulfillRequest',
-        'Fetch.failRequest',
-        'Fetch.getResponseBody',
-        // Emulation
-        'Emulation.setDeviceMetricsOverride',
-        'Emulation.clearDeviceMetricsOverride',
-        'Emulation.setUserAgentOverride',
-        'Emulation.setGeolocationOverride',
-        'Emulation.clearGeolocationOverride',
-        'Emulation.setTimezoneOverride',
-        'Emulation.setTouchEmulationEnabled',
-        'Emulation.setEmulatedMedia',
-        'Emulation.setDefaultBackgroundColorOverride',
-      ],
-    });
-  }
-
-  // Verify secret from query param
+  // Verify secret from query param (needed for both HTTP and WebSocket paths)
   const url = new URL(c.req.url);
   const providedSecret = url.searchParams.get('secret');
   const expectedSecret = c.env.CDP_SECRET;
+
+  // Check for WebSocket upgrade
+  const upgradeHeader = c.req.header('Upgrade');
+  if (upgradeHeader?.toLowerCase() !== 'websocket') {
+    // Non-WebSocket request: return CDP discovery response so clients (e.g. OpenClaw)
+    // can verify reachability and extract the WebSocket URL to connect to.
+    if (!expectedSecret) {
+      return c.json({ error: 'CDP endpoint not configured', hint: 'Set CDP_SECRET via: wrangler secret put CDP_SECRET' }, 503);
+    }
+    if (!providedSecret || !timingSafeEqual(providedSecret, expectedSecret)) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${url.host}/cdp?secret=${encodeURIComponent(providedSecret)}`;
+    return c.json({
+      Browser: 'Cloudflare-Browser-Rendering/1.0',
+      'Protocol-Version': '1.3',
+      'User-Agent': 'Mozilla/5.0 Cloudflare Browser Rendering',
+      'V8-Version': 'cloudflare',
+      'WebKit-Version': 'cloudflare',
+      webSocketDebuggerUrl: wsUrl,
+    });
+  }
 
   if (!expectedSecret) {
     return c.json(

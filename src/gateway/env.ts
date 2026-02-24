@@ -50,12 +50,17 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.SLACK_HISTORY_LIMIT) envVars.SLACK_HISTORY_LIMIT = env.SLACK_HISTORY_LIMIT;
   if (env.MENTION_PATTERNS) envVars.MENTION_PATTERNS = env.MENTION_PATTERNS;
   if (env.NOTION_API_KEY) envVars.NOTION_API_KEY = env.NOTION_API_KEY;
+  if (env.GOG_SERVICE_ACCOUNT_KEY) envVars.GOG_SERVICE_ACCOUNT_KEY = env.GOG_SERVICE_ACCOUNT_KEY;
+  if (env.GOG_KEYRING_PASSWORD) envVars.GOG_KEYRING_PASSWORD = env.GOG_KEYRING_PASSWORD;
+  if (env.GOG_ACCOUNT) envVars.GOG_ACCOUNT = env.GOG_ACCOUNT;
   if (env.CF_AI_GATEWAY_MODEL) envVars.CF_AI_GATEWAY_MODEL = env.CF_AI_GATEWAY_MODEL;
   if (env.MINIMAX_API_KEY) envVars.MINIMAX_API_KEY = env.MINIMAX_API_KEY;
   if (env.MINIMAX_MODEL) envVars.MINIMAX_MODEL = env.MINIMAX_MODEL;
   if (env.CF_ACCOUNT_ID) envVars.CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
   if (env.CDP_SECRET) envVars.CDP_SECRET = env.CDP_SECRET;
   if (env.WORKER_URL) envVars.WORKER_URL = env.WORKER_URL;
+  if (env.CF_ACCESS_CLIENT_ID) envVars.CF_ACCESS_CLIENT_ID = env.CF_ACCESS_CLIENT_ID;
+  if (env.CF_ACCESS_CLIENT_SECRET) envVars.CF_ACCESS_CLIENT_SECRET = env.CF_ACCESS_CLIENT_SECRET;
 
   // R2 persistence credentials (used by rclone in start-openclaw.sh)
   if (env.R2_ACCESS_KEY_ID) envVars.R2_ACCESS_KEY_ID = env.R2_ACCESS_KEY_ID;

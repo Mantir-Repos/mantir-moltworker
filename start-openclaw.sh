@@ -100,6 +100,15 @@ if r2_configured; then
         rclone copy "r2:${R2_BUCKET}/skills/" "$SKILLS_DIR/" $RCLONE_FLAGS -v 2>&1 || echo "WARNING: skills restore failed with exit code $?"
         echo "Skills restored"
     fi
+
+    # Restore gog credentials (Google Workspace auth tokens)
+    REMOTE_GOG_COUNT=$(rclone ls "r2:${R2_BUCKET}/gog/" $RCLONE_FLAGS 2>/dev/null | wc -l)
+    if [ "$REMOTE_GOG_COUNT" -gt 0 ]; then
+        echo "Restoring gog credentials from R2..."
+        mkdir -p /root/.config/gog
+        rclone copy "r2:${R2_BUCKET}/gog/" /root/.config/gog/ $RCLONE_FLAGS 2>&1 || echo "WARNING: gog credentials restore failed"
+        echo "gog credentials restored"
+    fi
 else
     echo "R2 not configured, starting fresh"
 fi
@@ -137,6 +146,16 @@ if [ ! -f "$CONFIG_FILE" ]; then
     echo "Onboard completed"
 else
     echo "Using existing config"
+fi
+
+# ============================================================
+# APPLY BUNDLED SKILLS (always override R2 to keep image skills current)
+# ============================================================
+BUNDLED_SKILLS="/opt/openclaw-bundled-skills"
+if [ -d "$BUNDLED_SKILLS" ]; then
+    mkdir -p "$SKILLS_DIR"
+    cp -r "$BUNDLED_SKILLS/." "$SKILLS_DIR/"
+    echo "Bundled skills applied from image"
 fi
 
 # ============================================================
@@ -340,6 +359,19 @@ if (process.env.NOTION_API_KEY) {
     console.log('Notion skill configured');
 }
 
+// Cloudflare Browser Rendering profile
+// Requires CDP_SECRET and WORKER_URL secrets set via wrangler secret put
+if (process.env.CDP_SECRET && process.env.WORKER_URL) {
+    const workerUrl = process.env.WORKER_URL.replace(/\/+$/, '');
+    config.browser = config.browser || {};
+    config.browser.profiles = config.browser.profiles || {};
+    config.browser.profiles.cloudflare = {
+        cdpUrl: workerUrl + '/cdp?secret=' + encodeURIComponent(process.env.CDP_SECRET),
+        color: '#F48120'
+    };
+    console.log('Browser cloudflare profile configured');
+}
+
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 console.log('Configuration patched successfully');
 EOFPATCH
@@ -380,6 +412,10 @@ if r2_configured; then
                     rclone sync "$SKILLS_DIR/" "r2:${R2_BUCKET}/skills/" \
                         $RCLONE_FLAGS 2>> "$LOGFILE"
                 fi
+                if [ -d /root/.config/gog ]; then
+                    rclone sync /root/.config/gog/ "r2:${R2_BUCKET}/gog/" \
+                        $RCLONE_FLAGS 2>> "$LOGFILE"
+                fi
                 date -Iseconds > "$LAST_SYNC_FILE"
                 touch "$MARKER"
                 echo "[sync] Complete at $(date)" >> "$LOGFILE"
@@ -387,6 +423,29 @@ if r2_configured; then
         done
     ) &
     echo "Background sync loop started (PID: $!)"
+fi
+
+# ============================================================
+# GOG (GOOGLE WORKSPACE) CONFIGURATION
+# ============================================================
+export GOG_KEYRING_BACKEND=file
+if [ -n "$GOG_ACCOUNT" ]; then
+    export GOG_ACCOUNT="$GOG_ACCOUNT"
+fi
+
+# Service account path (preferred — no browser auth, no keyring needed)
+# GOG_SERVICE_ACCOUNT_KEY is the base64-encoded service account JSON key
+if [ -n "$GOG_SERVICE_ACCOUNT_KEY" ] && [ -n "$GOG_ACCOUNT" ]; then
+    echo "Configuring gog service account for $GOG_ACCOUNT..."
+    mkdir -p /root/.config/gogcli
+    echo "$GOG_SERVICE_ACCOUNT_KEY" | base64 -d > /root/.config/gogcli/service-account.json
+    chmod 600 /root/.config/gogcli/service-account.json
+    gog auth service-account set "$GOG_ACCOUNT" --key /root/.config/gogcli/service-account.json \
+        && echo "gog service account configured" \
+        || echo "WARNING: gog service account setup failed"
+elif [ -n "$GOG_KEYRING_PASSWORD" ]; then
+    # Fallback: OAuth path (personal Gmail or if no service account configured)
+    echo "gog file keyring configured (OAuth path)"
 fi
 
 # ============================================================

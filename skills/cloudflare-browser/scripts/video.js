@@ -21,6 +21,10 @@ if (!CDP_SECRET) {
 const WORKER_URL = process.env.WORKER_URL.replace(/^https?:\/\//, '');
 const WS_URL = `wss://${WORKER_URL}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`;
 
+const WS_HEADERS = {};
+if (process.env.CF_ACCESS_CLIENT_ID) WS_HEADERS['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID;
+if (process.env.CF_ACCESS_CLIENT_SECRET) WS_HEADERS['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET;
+
 // Parse args
 const args = process.argv.slice(2);
 const urlArg = args.find(a => !a.startsWith('--'));
@@ -44,7 +48,7 @@ async function main() {
   console.log(`Creating video from ${urls.length} URL(s)`);
   console.log(`Output: ${output}, FPS: ${fps}, Scroll: ${doScroll}\n`);
   
-  const ws = new WebSocket(WS_URL);
+  const ws = new WebSocket(WS_URL, { headers: WS_HEADERS });
   let targetResolve;
   const targetReady = new Promise(r => { targetResolve = r; });
   

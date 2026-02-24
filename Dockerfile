@@ -20,10 +20,29 @@ RUN ARCH="$(dpkg --print-architecture)" \
 # Install pnpm globally
 RUN npm install -g pnpm
 
+# Install ws for cloudflare-browser skill scripts (screenshot.js, video.js, cdp-client.js)
+RUN npm install -g ws
+
 # Install OpenClaw (formerly clawdbot/moltbot)
 # Pin to specific version for reproducible builds
 RUN npm install -g openclaw@2026.2.17 \
     && openclaw --version
+
+# Install gog CLI (Google Workspace: Gmail, Calendar, Drive, Contacts, Sheets, Docs)
+# Uses file-based keyring backend (no OS keychain needed) — credentials stored in R2
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "${ARCH}" in \
+         amd64) GOG_ARCH="amd64" ;; \
+         arm64) GOG_ARCH="arm64" ;; \
+         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+       esac \
+    && GOG_VERSION=0.11.0 \
+    && curl -fsSL "https://github.com/steipete/gogcli/releases/download/v${GOG_VERSION}/gogcli_${GOG_VERSION}_linux_${GOG_ARCH}.tar.gz" \
+       -o /tmp/gogcli.tar.gz \
+    && tar -xzf /tmp/gogcli.tar.gz -C /tmp \
+    && install -m 0755 /tmp/gog /usr/local/bin/gog \
+    && rm -f /tmp/gogcli.tar.gz /tmp/gog \
+    && gog --version
 
 # Create OpenClaw directories
 # Legacy .clawdbot paths are kept for R2 backup migration
@@ -40,8 +59,9 @@ RUN chmod +x /usr/local/bin/start-openclaw.sh
 # These are applied on first boot (after onboard), but R2 restores take priority
 COPY identity/ /opt/openclaw-identity/
 
-# Copy custom skills
-COPY skills/ /root/clawd/skills/
+# Copy bundled skills to staging — applied after R2 restore in start-openclaw.sh
+# (prevents R2 backups of old skill versions from overriding image updates)
+COPY skills/ /opt/openclaw-bundled-skills/
 
 # Set working directory
 WORKDIR /root/clawd

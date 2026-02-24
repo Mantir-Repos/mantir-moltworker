@@ -24,9 +24,15 @@ function createClient(options = {}) {
   const workerUrl = (options.workerUrl || process.env.WORKER_URL).replace(/^https?:\/\//, '');
   const wsUrl = `wss://${workerUrl}/cdp?secret=${encodeURIComponent(CDP_SECRET)}`;
   const timeout = options.timeout || 60000;
-  
+
+  const wsHeaders = options.headers || {};
+  if (!wsHeaders['CF-Access-Client-Id'] && process.env.CF_ACCESS_CLIENT_ID)
+    wsHeaders['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID;
+  if (!wsHeaders['CF-Access-Client-Secret'] && process.env.CF_ACCESS_CLIENT_SECRET)
+    wsHeaders['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET;
+
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, { headers: wsHeaders });
     let messageId = 1;
     const pending = new Map();
     let targetId = null;

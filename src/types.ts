@@ -38,6 +38,10 @@ export interface MoltbotEnv {
   SLACK_HISTORY_LIMIT?: string; // Number of messages to include as context (default: 10)
   MENTION_PATTERNS?: string; // Comma-separated mention patterns, e.g. "jeff,jeff barnes,@jeff"
   NOTION_API_KEY?: string; // Notion integration API key for the Notion skill
+  // Google Workspace (gog) configuration
+  GOG_SERVICE_ACCOUNT_KEY?: string; // Base64-encoded service account JSON key (preferred: domain-wide delegation, no browser auth needed)
+  GOG_KEYRING_PASSWORD?: string; // Passphrase for gog's file-based keyring (only needed for OAuth/personal Gmail path)
+  GOG_ACCOUNT?: string; // Google account email to impersonate via service account (or default OAuth account)
   // Cloudflare Access configuration for admin routes
   CF_ACCESS_TEAM_DOMAIN?: string; // e.g., 'myteam.cloudflareaccess.com'
   CF_ACCESS_AUD?: string; // Application Audience (AUD) tag
@@ -50,6 +54,8 @@ export interface MoltbotEnv {
   BROWSER?: Fetcher;
   CDP_SECRET?: string; // Shared secret for CDP endpoint authentication
   WORKER_URL?: string; // Public URL of the worker (for CDP endpoint)
+  CF_ACCESS_CLIENT_ID?: string; // Service token client ID for bypassing CF Access on /cdp
+  CF_ACCESS_CLIENT_SECRET?: string; // Service token client secret
 }
 
 /**
