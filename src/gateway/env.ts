@@ -62,6 +62,13 @@ export function buildEnvVars(env: MoltbotEnv): Record<string, string> {
   if (env.CF_ACCESS_CLIENT_ID) envVars.CF_ACCESS_CLIENT_ID = env.CF_ACCESS_CLIENT_ID;
   if (env.CF_ACCESS_CLIENT_SECRET) envVars.CF_ACCESS_CLIENT_SECRET = env.CF_ACCESS_CLIENT_SECRET;
 
+  // X (Twitter) API credentials for the x-timeline skill (OAuth 1.0a)
+  if (env.X_API_KEY) envVars.X_API_KEY = env.X_API_KEY;
+  if (env.X_API_SECRET) envVars.X_API_SECRET = env.X_API_SECRET;
+  if (env.X_ACCESS_TOKEN) envVars.X_ACCESS_TOKEN = env.X_ACCESS_TOKEN;
+  if (env.X_ACCESS_TOKEN_SECRET) envVars.X_ACCESS_TOKEN_SECRET = env.X_ACCESS_TOKEN_SECRET;
+  if (env.X_USER_ID) envVars.X_USER_ID = env.X_USER_ID;
+
   // R2 persistence credentials (used by rclone in start-openclaw.sh)
   if (env.R2_ACCESS_KEY_ID) envVars.R2_ACCESS_KEY_ID = env.R2_ACCESS_KEY_ID;
   if (env.R2_SECRET_ACCESS_KEY) envVars.R2_SECRET_ACCESS_KEY = env.R2_SECRET_ACCESS_KEY;

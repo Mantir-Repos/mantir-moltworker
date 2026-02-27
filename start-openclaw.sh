@@ -214,8 +214,14 @@ if (process.env.OPENCLAW_GATEWAY_TOKEN) {
     config.gateway.auth.token = process.env.OPENCLAW_GATEWAY_TOKEN;
 }
 
+// Fully reset controlUi to prevent stale/invalid keys from accumulating via R2.
+// allowedOrigins is required when the gateway is on a non-loopback address.
+const workerUrl = process.env.WORKER_URL ? process.env.WORKER_URL.replace(/\/+$/, '') : null;
+config.gateway.controlUi = {};
+if (workerUrl) {
+    config.gateway.controlUi.allowedOrigins = [workerUrl];
+}
 if (process.env.OPENCLAW_DEV_MODE === 'true') {
-    config.gateway.controlUi = config.gateway.controlUi || {};
     config.gateway.controlUi.allowInsecureAuth = true;
 }
 

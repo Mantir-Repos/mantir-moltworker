@@ -56,6 +56,12 @@ export interface MoltbotEnv {
   WORKER_URL?: string; // Public URL of the worker (for CDP endpoint)
   CF_ACCESS_CLIENT_ID?: string; // Service token client ID for bypassing CF Access on /cdp
   CF_ACCESS_CLIENT_SECRET?: string; // Service token client secret
+  // X (Twitter) API configuration for the x-timeline skill (OAuth 1.0a)
+  X_API_KEY?: string; // Consumer key / API key from the X Developer app
+  X_API_SECRET?: string; // Consumer secret / API secret from the X Developer app
+  X_ACCESS_TOKEN?: string; // OAuth 1.0a access token for the authenticated account
+  X_ACCESS_TOKEN_SECRET?: string; // OAuth 1.0a access token secret
+  X_USER_ID?: string; // Numeric user ID of the authenticated X account
 }
 
 /**
