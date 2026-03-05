@@ -32,7 +32,8 @@ export interface MoltbotEnv {
   DISCORD_BOT_TOKEN?: string;
   DISCORD_DM_POLICY?: string;
   SLACK_BOT_TOKEN?: string;
-  SLACK_APP_TOKEN?: string;
+  SLACK_SIGNING_SECRET?: string; // Slack signing secret for HTTP Events API (replaces SLACK_APP_TOKEN)
+  SLACK_APP_TOKEN?: string; // Legacy: Slack app-level token for Socket Mode (no longer used)
   SLACK_GROUP_POLICY?: string; // Slack group chat policy: 'open' (default), 'closed', etc.
   SLACK_REQUIRE_MENTION?: string; // 'true' to require @mention in group chats
   SLACK_HISTORY_LIMIT?: string; // Number of messages to include as context (default: 10)
