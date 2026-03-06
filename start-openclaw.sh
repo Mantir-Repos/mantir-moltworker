@@ -325,15 +325,16 @@ if (process.env.DISCORD_BOT_TOKEN) {
     };
 }
 
-// Slack configuration
-if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
+// Slack configuration (HTTP Events API mode — no persistent socket, container can sleep)
+if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET) {
     const groupPolicy = process.env.SLACK_GROUP_POLICY || 'open';
     const requireMention = process.env.SLACK_REQUIRE_MENTION === 'true';
     const historyLimit = parseInt(process.env.SLACK_HISTORY_LIMIT, 10) || 10;
     config.channels.slack = {
-        mode: 'socket',
+        mode: 'http',
         botToken: process.env.SLACK_BOT_TOKEN,
-        appToken: process.env.SLACK_APP_TOKEN,
+        signingSecret: process.env.SLACK_SIGNING_SECRET,
+        webhookPath: '/slack/events',
         enabled: true,
         groupPolicy: groupPolicy,
         requireMention: requireMention,
@@ -343,7 +344,7 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     config.plugins = config.plugins || {};
     config.plugins.entries = config.plugins.entries || {};
     config.plugins.entries.slack = { enabled: true };
-    console.log('Slack configured: groupPolicy=' + groupPolicy + ' requireMention=' + requireMention);
+    console.log('Slack configured (HTTP mode): groupPolicy=' + groupPolicy + ' requireMention=' + requireMention);
 }
 
 // Mention patterns for group chats (e.g. "jeff,jeff barnes,@jeff,hey jeff")
@@ -393,7 +394,7 @@ if r2_configured; then
         touch "$MARKER"
 
         while true; do
-            sleep 30
+            sleep 300
 
             CHANGED=/tmp/.changed-files
             {

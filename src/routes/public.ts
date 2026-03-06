@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { MOLTBOT_PORT } from '../config';
-import { findExistingMoltbotProcess } from '../gateway';
+import { findExistingMoltbotProcess, ensureMoltbotGateway } from '../gateway';
 
 /**
  * Public routes - NO Cloudflare Access authentication required
@@ -65,6 +65,59 @@ publicRoutes.get('/_admin/assets/*', async (c) => {
   const assetPath = url.pathname.replace('/_admin/assets/', '/assets/');
   const assetUrl = new URL(assetPath, url.origin);
   return c.env.ASSETS.fetch(new Request(assetUrl.toString(), c.req.raw));
+});
+
+/**
+ * POST /slack/events - Slack Events API HTTP webhook (replaces Socket Mode)
+ *
+ * Architecture: The Worker (always-on serverless) receives Slack events, ACKs immediately,
+ * then starts the container and forwards the event once it's ready. This allows the container
+ * to sleep when idle, cutting costs from ~$27/month to near-zero container charges.
+ *
+ * Flow:
+ *   Slack → POST /slack/events → Worker ACKs 200 → ctx.waitUntil starts container
+ *                                                 → forwards event once port 18789 is up
+ *                                                 → OpenClaw processes, replies via chat.postMessage
+ */
+publicRoutes.post('/slack/events', async (c) => {
+  const body = await c.req.text();
+
+  // Slack url_verification challenge: must respond synchronously with the challenge value
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed.type === 'url_verification') {
+      return c.json({ challenge: parsed.challenge });
+    }
+  } catch {
+    // Not JSON — fall through and forward raw body
+  }
+
+  // For all real events: ACK to Slack immediately (Slack requires < 3s response)
+  // then start the container and forward the event asynchronously.
+  const sandbox = c.get('sandbox');
+  const env = c.env;
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      try {
+        // Start container if not running (no-op if already up)
+        await ensureMoltbotGateway(sandbox, env);
+
+        // Forward the original Slack event body to OpenClaw's /slack/events endpoint
+        const forwardReq = new Request(`http://localhost:${MOLTBOT_PORT}/slack/events`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+        await sandbox.containerFetch(forwardReq, MOLTBOT_PORT);
+      } catch (err) {
+        console.error('[SLACK] Failed to forward event to container:', err);
+      }
+    })(),
+  );
+
+  // Slack expects HTTP 200 with an empty body (or {"ok":true}) within 3 seconds
+  return new Response(null, { status: 200 });
 });
 
 export { publicRoutes };

@@ -67,13 +67,6 @@
   "browser": {
     "binding": "BROWSER",
   },
-  // Cron trigger to keep the container warm.
-  // Without this, the Durable Object gets evicted after inactivity,
-  // killing Slack/Discord Socket Mode connections and stopping heartbeats/cron jobs.
-  // Runs every 5 minutes to ensure the gateway stays alive.
-  "triggers": {
-    "crons": ["*/5 * * * *"]
-  },
   // Note: CF_ACCOUNT_ID should be set via `wrangler secret put CF_ACCOUNT_ID`
   // Secrets to configure via `wrangler secret put`:
   //
@@ -94,7 +87,9 @@
   // - CF_ACCESS_AUD: Cloudflare Access application audience
   //
   // Chat channels (optional):
-  // - TELEGRAM_BOT_TOKEN, DISCORD_BOT_TOKEN, SLACK_BOT_TOKEN, SLACK_APP_TOKEN
+  // - TELEGRAM_BOT_TOKEN, DISCORD_BOT_TOKEN
+  // - Slack (HTTP Events API mode): SLACK_BOT_TOKEN + SLACK_SIGNING_SECRET
+  //   Set Event Subscriptions + Interactivity Request URL to: https://<your-worker>/slack/events
   //
   // Browser automation (optional):
   // - CDP_SECRET: Shared secret for /cdp endpoint authentication
