@@ -1,58 +1,9 @@
-FROM docker.io/cloudflare/sandbox:0.7.0
+FROM registry.cloudflare.com/6644a20cd7020bf5625ea250ee029ff7/moltbot-sandbox-sandbox:ea99d41d
 
-# Build: HTTP Events API mode (no keep-alive cron)
-# Install Node.js 22 (required by OpenClaw) and rclone (for R2 persistence)
-# The base image has Node 20, we need to replace it with Node 22
-# Using direct binary download for reliability
-ENV NODE_VERSION=22.13.1
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-         amd64) NODE_ARCH="x64" ;; \
-         arm64) NODE_ARCH="arm64" ;; \
-         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-       esac \
-    && apt-get update && apt-get install -y xz-utils ca-certificates rclone \
-    && curl -fsSLk https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz -o /tmp/node.tar.xz \
-    && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
-    && rm /tmp/node.tar.xz \
-    && node --version \
-    && npm --version
+# Build: HTTP Events API mode (layered on top of existing image to avoid re-pushing 1.9GB openclaw layer)
+# Only the files below change — all Node/OpenClaw/gog layers are inherited from the base
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
-# Install ws for cloudflare-browser skill scripts (screenshot.js, video.js, cdp-client.js)
-RUN npm install -g ws
-
-# Install OpenClaw (formerly clawdbot/moltbot)
-# Pin to specific version for reproducible builds
-RUN npm install -g openclaw@2026.2.17 \
-    && openclaw --version
-
-# Install gog CLI (Google Workspace: Gmail, Calendar, Drive, Contacts, Sheets, Docs)
-# Uses file-based keyring backend (no OS keychain needed) — credentials stored in R2
-RUN ARCH="$(dpkg --print-architecture)" \
-    && case "${ARCH}" in \
-         amd64) GOG_ARCH="amd64" ;; \
-         arm64) GOG_ARCH="arm64" ;; \
-         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
-       esac \
-    && GOG_VERSION=0.11.0 \
-    && curl -fsSL "https://github.com/steipete/gogcli/releases/download/v${GOG_VERSION}/gogcli_${GOG_VERSION}_linux_${GOG_ARCH}.tar.gz" \
-       -o /tmp/gogcli.tar.gz \
-    && tar -xzf /tmp/gogcli.tar.gz -C /tmp \
-    && install -m 0755 /tmp/gog /usr/local/bin/gog \
-    && rm -f /tmp/gogcli.tar.gz /tmp/gog \
-    && gog --version
-
-# Create OpenClaw directories
-# Legacy .clawdbot paths are kept for R2 backup migration
-RUN mkdir -p /root/.openclaw \
-    && mkdir -p /root/clawd \
-    && mkdir -p /root/clawd/skills
-
-# Copy startup script
-# Build cache bust: 2026-02-17-v32-openclaw-update
+# Copy startup script (updated for HTTP Events API mode, 300s R2 sync)
 COPY start-openclaw.sh /usr/local/bin/start-openclaw.sh
 RUN chmod +x /usr/local/bin/start-openclaw.sh
 
