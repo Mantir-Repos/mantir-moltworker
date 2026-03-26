@@ -1,5 +1,6 @@
 FROM docker.io/cloudflare/sandbox:0.7.0
 
+# Build: HTTP Events API mode (no keep-alive cron)
 # Install Node.js 22 (required by OpenClaw) and rclone (for R2 persistence)
 # The base image has Node 20, we need to replace it with Node 22
 # Using direct binary download for reliability
